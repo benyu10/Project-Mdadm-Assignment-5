@@ -49,9 +49,12 @@ static bool nwrite(int fd, int len, uint8_t *buf) {
 /* attempts to receive a packet from fd; returns true on success and false on
  * failure */
 static bool recv_packet(int fd, uint32_t *op, uint16_t *ret, uint8_t *block) {
+  uint16_t len;
   uint16_t nlen;
   uint8_t header[HEADER_LEN];
 
+  nlen = len;
+  
   if (!nread(fd, HEADER_LEN, header))
     {
       return false;
@@ -69,7 +72,7 @@ static bool recv_packet(int fd, uint32_t *op, uint16_t *ret, uint8_t *block) {
   *ret = ntohs(*ret);
 
   
-  if(len == 264) //checks to see if its a read operation, if it is then read extra 256
+  if(nlen == 264) //checks to see if its a read operation, if it is then read extra 256
     {
       nread(fd, 256, block);
     }
@@ -84,7 +87,7 @@ static bool send_packet(int sd, uint32_t op, uint8_t *block) {
   uint16_t len = HEADER_LEN;
   uint16_t opcode = op >> 26;
 
-  if (opcode == JBOD_WRITE_BLOCK)
+  if (opcode == 256)
     {
       len += 256;
     }
@@ -93,11 +96,12 @@ static bool send_packet(int sd, uint32_t op, uint8_t *block) {
   uint32_t new_op = htonl(op);
   
   memcpy(header, &new_len, sizeof(new_len));
-  memcpy(header+sizeof(new_len), &new_op, sizeof(new_op)); //construct the packet host or network
-  
+  memcpy(header+sizeof(new_len), &new_op, sizeof(new_op)); 
+
+ 
   if (opcode == JBOD_WRITE_BLOCK)
     {
-      memcpy(header+ HEADER_LEN, block, 256);
+      memcpy(header + HEADER_LEN, block, 256);
     }
   //writing the packet using nwrite
   return nwrite(sd, len, header);
@@ -120,7 +124,7 @@ bool jbod_connect(const char *ip, uint16_t port) {
   caddr.sin_port = htons(port);
 
   inet_aton(ip, &caddr.sin_addr);
-  //connect(cli_sd, (const struct sockaddr *)&caddr, sizeof(caddr));
+ 
   if (connect(cli_sd, (const struct sockaddr *)&caddr, sizeof(caddr))== 0) 
     {
       return true;
