@@ -33,8 +33,8 @@ static bool nread(int fd, int len, uint8_t *buf) {
 /* attempts to write n bytes to fd; returns true on success and false on
  * failure */
 static bool nwrite(int fd, int len, uint8_t *buf) {
-  int data_written =0;
-  while (data_written < 0)
+  int data_written = 0;
+  while (data_written < len)
   {
     int n = write(fd, &buf[data_written], len - data_written);
     if (n < 0)
@@ -49,7 +49,7 @@ static bool nwrite(int fd, int len, uint8_t *buf) {
 /* attempts to receive a packet from fd; returns true on success and false on
  * failure */
 static bool recv_packet(int fd, uint32_t *op, uint16_t *ret, uint8_t *block) {
-  uint16_t len;
+  uint16_t nlen;
   uint8_t header[HEADER_LEN];
 
   if (!nread(fd, HEADER_LEN, header))
@@ -63,19 +63,16 @@ static bool recv_packet(int fd, uint32_t *op, uint16_t *ret, uint8_t *block) {
   memcpy(op, header + offset, sizeof(*op));
   offset += sizeof(*op);
   memcpy(ret, header + offset, sizeof(*ret));
-
+  
   len = ntohs(len);
   *op = ntohl(*op);
   *ret = ntohs(*ret);
 
+  
   if(len == 264) //checks to see if its a read operation, if it is then read extra 256
     {
-      if (nread(fd, 256, block) == false)
-	{
-	  return false;
-	}
+      nread(fd, 256, block);
     }
-
   return true;
 }
 
@@ -94,11 +91,10 @@ static bool send_packet(int sd, uint32_t op, uint8_t *block) {
   
   uint16_t new_len = htons(len);
   uint32_t new_op = htonl(op);
- 
-  //constructing the packet
+  
   memcpy(header, &new_len, sizeof(new_len));
-  memcpy(header+sizeof(&new_len), &new_op, sizeof(new_op));
-
+  memcpy(header+sizeof(new_len), &new_op, sizeof(new_op)); //construct the packet host or network
+  
   if (opcode == JBOD_WRITE_BLOCK)
     {
       memcpy(header+ HEADER_LEN, block, 256);
@@ -124,7 +120,7 @@ bool jbod_connect(const char *ip, uint16_t port) {
   caddr.sin_port = htons(port);
 
   inet_aton(ip, &caddr.sin_addr);
-  connect(cli_sd, (const struct sockaddr *)&caddr, sizeof(caddr));
+  //connect(cli_sd, (const struct sockaddr *)&caddr, sizeof(caddr));
   if (connect(cli_sd, (const struct sockaddr *)&caddr, sizeof(caddr))== 0) 
     {
       return true;
@@ -145,4 +141,6 @@ int jbod_client_operation(uint32_t op, uint8_t *block) {
   uint16_t ret; 
   send_packet(cli_sd, op, block);
   recv_packet(cli_sd, &op, &ret, block);
+
   return ret;
+}
